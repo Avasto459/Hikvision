@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from "crypto";
 import { getCodeSecret, signToken } from "@/lib/auth";
 import { normalizeTajikPhone } from "@/lib/phone";
+import { createClient } from '@libsql/client';
 import { db } from "./client";
 import { initializeDatabase } from "./seed";
 
