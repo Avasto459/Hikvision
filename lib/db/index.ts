@@ -83,7 +83,31 @@ export async function completePasswordReset(email:string,code:string,passwordHas
 export async function completePhonePasswordReset(phone:string,code:string,passwordHash:string){if(!await verifyPasswordResetCode(phone,code))throw new StoreError("Неверный или просроченный код.",400);const u=await getUserByPhone(phone);if(!u)throw new StoreError("Пользователь не найден.",404);await updateUserPassword(u.id,passwordHash);await db.execute({sql:`DELETE FROM phonePasswordResetCodes WHERE phone=?`,args:[normalizeTajikPhone(phone)||phone]})}
 export async function invalidatePasswordResetCode(email:string){await ready();await db.execute({sql:`DELETE FROM passwordResetCodes WHERE email=?`,args:[email.toLowerCase()]})}
 export async function invalidateRegistrationCode(email:string){await ready();await db.execute({sql:`DELETE FROM pendingRegistrations WHERE email=?`,args:[email.toLowerCase()]})}
-export async function issueRegistrationCode(p:{email:string;firstName:string;lastName:string;phone:string;passwordHash:string}){await ready();const code=makeCode(),hash=await codeHash(code),email=p.email.toLowerCase();await db.execute({sql:`INSERT INTO pendingRegistrations(email,firstName,lastName,phone,passwordHash,codeHash,expiresAt,nextResendAt,dailyCount,dailyWindow,attempts,createdAt) VALUES(?,?,?,?,?,?,?,?,1,?,0,?) ON CONFLICT(email) DO UPDATE SET firstName=excluded.firstName,lastName=excluded.lastName,phone=excluded.phone,passwordHash=excluded.passwordHash,codeHash=excluded.codeHash,expiresAt=excluded.expiresAt,nextResendAt=excluded.nextResendAt,attempts=0,createdAt=excluded.createdAt`,args:[email,p.firstName,p.lastName,p.phone,p.passwordHash,new Date(Date.now()+10*60*1000).toISOString(),new Date(Date.now()+60*1000).toISOString(),new Date().toISOString().slice(0,10),now()]});return code}
+export async function issueRegistrationCode(p:{email:string;firstName:string;lastName:string;phone:string;passwordHash:string}){
+  await ready();
+  const code = makeCode();
+  const hash = await codeHash(code);
+  const email = p.email.toLowerCase();
+  await db.execute({
+    sql: `INSERT INTO 
+pendingRegistrations(email,firstName,lastName,phone,passwordHash,codeHash,expiresAt,nextResendAt,dailyCount,dailyWindow,attempts,createdAt) 
+VALUES(?,?,?,?,?,?,?,?,1,?,0,?) ON CONFLICT(email) DO UPDATE SET 
+firstName=excluded.firstName,lastName=excluded.lastName,phone=excluded.phone,passwordHash=excluded.passwordHash,codeHash=excluded.codeHash,expiresAt=excluded.expiresAt,nextResendAt=excluded.nextResendAt,attempts=0,createdAt=excluded.createdAt`,
+    args: [
+      email,
+      p.firstName,
+      p.lastName,
+      p.phone,
+      p.passwordHash,
+      hash,
+      new Date(Date.now()+10*60*1000).toISOString(),
+      new Date(Date.now()+60*1000).toISOString(),
+      new Date().toISOString().slice(0,10),
+      now()
+    ]
+  });
+  return code;
+}
 export async function resendRegistrationCode(email:string){const r=await db.execute({sql:`SELECT * FROM pendingRegistrations WHERE email=?`,args:[email.toLowerCase()]});const x=r.rows[0];if(!x)throw new StoreError("Регистрация не найдена.",404);return issueRegistrationCode({email:String(x.email),firstName:String(x.firstName),lastName:String(x.lastName),phone:String(x.phone),passwordHash:String(x.passwordHash)})}
 export async function verifyRegistrationCode(email:string,code:string){await ready();const r=await db.execute({sql:`SELECT * FROM pendingRegistrations WHERE email=?`,args:[email.toLowerCase()]});const x=r.rows[0];if(!x||new Date(String(x.expiresAt)).getTime()<Date.now()||await codeHash(code)!==String(x.codeHash))throw new StoreError("Неверный или просроченный код.",400);const u=await createUser({firstName:String(x.firstName),lastName:String(x.lastName),email:String(x.email),phone:String(x.phone),passwordHash:String(x.passwordHash)});await invalidateRegistrationCode(email);return u}
 export async function issueEmailChangeCode(userId:string,email:string){const u=await getUserById(userId);if(!u)throw new StoreError("Пользователь не найден.",404);await ready();const code=makeCode(),hash=await codeHash(code),expires=new Date(Date.now()+10*60*1000).toISOString(),next=new Date(Date.now()+60*1000).toISOString();await db.execute({sql:`INSERT INTO emailChangeCodes(userId,email,codeHash,expiresAt,nextResendAt,dailyCount,dailyWindow,attempts,createdAt) VALUES(?,?,?,?,?,1,?,0,?) ON CONFLICT(userId) DO UPDATE SET email=excluded.email,codeHash=excluded.codeHash,expiresAt=excluded.expiresAt,nextResendAt=excluded.nextResendAt,attempts=0,createdAt=excluded.createdAt`,args:[userId,email.toLowerCase(),hash,expires,next,new Date().toISOString().slice(0,10),now()]});return code}

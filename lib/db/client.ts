@@ -8,12 +8,10 @@ function createDb(): Client {
   const url = process.env.TURSO_DATABASE_URL?.trim();
   const token = process.env.TURSO_AUTH_TOKEN?.trim();
 
-  // Если переменные Turso заданы (например, на Vercel или в .env.local)
   if (url && token) {
     return createClient({ url, authToken: token });
   }
 
-  // Если переменные не заданы (локальный запуск без .env.local)
   return createClient({ url: "file:data/hasi.db" });
 }
 
