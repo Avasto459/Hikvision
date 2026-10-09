@@ -93,7 +93,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       <header ref={headerRef} className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <Link href="/" aria-label="HASI — High-tech Automation & Security International" className="flex shrink-0 items-center rounded-xl bg-white px-2 py-1 ring-1 ring-slate-200 dark:ring-slate-700" onClick={closeMenu}>
-            <Image src="/hasi-logo.png" alt="HASI — High-tech Automation & Security International" width={600} height={370} priority className="h-12 w-auto sm:h-14" />
+            <Image src="/hasi-logo.png" alt="HASI — High-tech Automation & Security International" width={600} height={370} priority className="h-8 w-auto sm:h-10" />
           </Link>
 
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 lg:flex dark:text-slate-300">
