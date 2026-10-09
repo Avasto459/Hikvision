@@ -114,9 +114,21 @@ export async function issueEmailChangeCode(userId:string,email:string){const u=a
 export async function invalidateEmailChangeCode(userId:string){await ready();await db.execute({sql:`DELETE FROM emailChangeCodes WHERE userId=?`,args:[userId]})}
 export async function verifyEmailChangeCode(userId:string,email:string,code:string){await ready();const r=await db.execute({sql:`SELECT * FROM emailChangeCodes WHERE userId=? AND email=?`,args:[userId,email.toLowerCase()]});const x=r.rows[0];if(!x||new Date(String(x.expiresAt)).getTime()<Date.now()||await codeHash(code)!==String(x.codeHash))throw new StoreError("Неверный или просроченный код.",400);await db.execute({sql:`UPDATE users SET email=? WHERE id=?`,args:[email.toLowerCase(),userId]});await invalidateEmailChangeCode(userId);return getUserById(userId)}
 
-export async function getUserFavorites(userId:string){await ready();const r=await db.execute({sql:`SELECT productId FROM userFavorites WHERE userId=?`,args:[userId]});return r.rows.map(x=>String(x.productId))}
 export async function addFavorite(userId:string,productId:string){await ready();await db.execute({sql:`INSERT INTO userFavorites(userId,productId,createdAt) VALUES(?,?,?) ON CONFLICT(userId,productId) DO NOTHING`,args:[userId,productId,now()]})}
-export async function removeFavorite(userId:string,productId:string){await ready();await db.execute({sql:`DELETE FROM userFavorites WHERE userId=? AND productId=?`,args:[userId,productId]})}
+export async function getUserFavorites(userId:string){
+  await ready();
+  const r = await db.execute({
+    sql: `SELECT p.*, c.name AS categoryName, c.slug AS categorySlug 
+          FROM userFavorites f 
+          JOIN products p ON p.id = f.productId 
+          JOIN categories c ON c.id = p.categoryId 
+          WHERE f.userId = ? 
+          ORDER BY f.createdAt DESC`,
+    args: [userId]
+  });
+  return r.rows.map(x => mapProduct(row<Record<string,unknown>>(x)));
+}
+
 export async function saveActivity(actorId:string|null,action:string,message:string){await ready();await db.execute({sql:`INSERT INTO activityLogs(id,actorId,action,message,createdAt) VALUES(?,?,?,?,?)`,args:[randomUUID(),actorId,action,message,now()]})}
 export async function deleteActivityLog(id:string){await ready();await db.execute({sql:`DELETE FROM activityLogs WHERE id=?`,args:[id]})}
 export async function clearActivityLogs(){await ready();const r=await db.execute(`DELETE FROM activityLogs`);return r.rowsAffected}
@@ -158,3 +170,11 @@ export async function findFallbackAdminByEmail(email:string){const e=email.toLow
 export async function verifyFallbackAdmin(email:string,password:string){const u=await findFallbackAdminByEmail(email);if(!u)return null;return await bcrypt.compare(password,u.passwordHash)?u:null}
 
 export type PendingRegistration={email:string;firstName:string;lastName:string;phone:string;passwordHash:string;codeHash:string;expiresAt:string;nextResendAt:string;dailyCount:number;dailyWindow:string;attempts:number};
+
+export async function removeFavorite(userId:string,productId:string){
+  await ready();
+  await db.execute({
+    sql: `DELETE FROM userFavorites WHERE userId=? AND productId=?`,
+    args: [userId, productId]
+  });
+}
