@@ -1,0 +1,100 @@
+import { createClient } from "@libsql/client";
+import { createHash } from "node:crypto";
+import { mkdir, writeFile, access } from "node:fs/promises";
+import path from "node:path";
+
+// Usage: npm run catalog:images -- --limit=50
+// By default edits only data/hasi.db and public/catalog. It never deletes products.
+const root = process.cwd();
+const publicDir = path.join(root, "public", "catalog");
+const limitArg = process.argv.find((x) => x.startsWith("--limit="));
+const limit = Math.max(1, Number(limitArg?.split("=")[1] || 1500));
+const includeAll = process.argv.includes("--all");
+const db = createClient({ url: `file:${path.join(root, "data", "hasi.db")}` });
+const defaultImage = "https://images.unsplash.com/photo-1557324232-b8917d4c3d61?q=80&w=600&auto=format&fit=crop";
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function hash(s) { return createHash("sha1").update(s).digest("hex").slice(0, 12); }
+function safeName(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "product"; }
+function isGenericImage(image) { return !image || /^\/?products\/[^/]+\.svg(?:\?.*)?$/i.test(String(image)) || /^\/?placeholder(?:\/|\.)/i.test(String(image)); }
+function decodeCandidate(s) {
+  return String(s || "").replace(/&amp;/g, "&").replace(/\\u0026/g, "&").replace(/\\\//g, "/").replace(/\\u003a/g, ":");
+}
+function extractImageUrls(html) {
+  const out = [];
+  // Bing image cards include image URLs in JSON fields named murl.
+  for (const match of html.matchAll(/"murl"\s*:\s*"((?:\\.|[^"\\])+)"/g)) {
+    let u = match[1];
+    try { u = JSON.parse(`"${u}"`); } catch {}
+    u = decodeCandidate(u);
+    if (/^https?:\/\//i.test(u)) out.push(u);
+  }
+  // Also accept direct images from search result markup when Bing changes its JSON shape.
+  for (const match of html.matchAll(/https?:\\?\/\\?\/[^"'<> ]+?\.(?:jpg|jpeg|png|webp)(?:\?[^"'<> ]*)?/gi)) {
+    const u = decodeCandidate(match[0]);
+    if (/^https?:\/\//i.test(u)) out.push(u);
+  }
+  return [...new Set(out)].slice(0, 20);
+}
+async function searchImage(product) {
+  const brand = String(product.brand || "").trim();
+  const model = String(product.sku || "").trim() || String(product.name || "").replace(/\b(IP камера|IP-камера|камера видеонаблюдения)\b/ig, "").trim();
+  const query = `${brand} ${model} official product image camera`;
+  const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&form=HDRSC3&first=1`;
+  const response = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (compatible; HASIMarketCatalogImageBot/1.0)", accept: "text/html" }, signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`Bing HTTP ${response.status}`);
+  const html = await response.text();
+  return extractImageUrls(html);
+}
+async function downloadImage(url, outPath) {
+  try {
+    const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (compatible; HASIMarketCatalogImageBot/1.0)", accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8" }, redirect: "follow", signal: AbortSignal.timeout(18000) });
+    if (!res.ok) return false;
+    const type = (res.headers.get("content-type") || "").toLowerCase();
+    if (!type.startsWith("image/") || type.includes("svg")) return false;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length < 2500 || buffer.length > 8 * 1024 * 1024) return false;
+    const ext = type.includes("webp") ? ".webp" : type.includes("png") ? ".png" : ".jpg";
+    const target = outPath.replace(/\.(?:jpg|jpeg|png|webp)$/i, ext);
+    await writeFile(target, buffer);
+    return `/${path.relative(path.join(root, "public"), target).split(path.sep).join("/")}`;
+  } catch { return false; }
+}
+
+try {
+  await mkdir(publicDir, { recursive: true });
+  const result = await db.execute("SELECT id,name,brand,sku,image,images FROM products WHERE isPublished=1 ORDER BY brand,name");
+  const candidates = result.rows.filter((p) => includeAll || isGenericImage(p.image));
+  const todo = candidates.slice(0, limit);
+  console.log(`Товаров в базе: ${result.rows.length}; требуют фото: ${candidates.length}; обработка сейчас: ${todo.length}`);
+  let updated = 0, fallback = 0, skipped = 0;
+  for (let i = 0; i < todo.length; i++) {
+    const p = todo[i];
+    const base = `${safeName(p.brand)}-${safeName(p.sku || p.name)}-${hash(String(p.id))}`;
+    let saved = false;
+    try {
+      const urls = await searchImage(p);
+      for (const imageUrl of urls) {
+        const filePath = path.join(publicDir, `${base}.jpg`);
+        const localUrl = await downloadImage(imageUrl, filePath);
+        if (localUrl) { saved = localUrl; break; }
+      }
+    } catch (error) {
+      console.warn(`Поиск пропущен для ${p.name}: ${error instanceof Error ? error.message : error}`);
+    }
+    if (saved) {
+      await db.execute({ sql: "UPDATE products SET image=?, images=? WHERE id=?", args: [saved, JSON.stringify([saved]), p.id] });
+      updated++;
+      console.log(`[${i + 1}/${todo.length}] Фото скачано: ${p.name} -> ${saved}`);
+    } else {
+      // Расм ёфт нашуд: маълумоти маҳсулотро тағйир намедиҳем.
+      skipped++;
+      console.log(`[${i + 1}/${todo.length}] Расм ёфт нашуд, расми пешина нигоҳ дошта шуд: ${p.name}`);
+    }
+    if ((i + 1) % 5 === 0) await sleep(700);
+  }
+  console.log(`Готово. Локальные фото скачаны: ${updated}; поставлен интернет-fallback: ${fallback}; всего обработано: ${todo.length}.`);
+  console.log("Изменена только база data/hasi.db и добавлены файлы public/catalog; товары не удалялись.");
+} finally {
+  db.close();
+}

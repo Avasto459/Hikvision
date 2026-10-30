@@ -1,0 +1,46 @@
+{
+  "name": "hasi",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "prebuild": "npm run catalog:sync:local || true",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "catalog:sync": "node --env-file-if-exists=.env.local scripts/sync-hasi-catalog.mjs",
+    "catalog:sync:local": "node --env-file-if-exists=.env.local scripts/sync-hasi-catalog.mjs --local",
+    "db:reset": "node --env-file-if-exists=.env.local scripts/reset-database.mjs",
+    "dev:local": "npm run catalog:sync:local && USE_LOCAL_DB=true next dev",
+    "seed": "node --env-file-if-exists=.env.local scripts/sync-hasi-catalog.mjs",
+    "catalog:import": "node --env-file-if-exists=.env.local scripts/import-price-lists.mjs",
+    "catalog:images": "node --env-file-if-exists=.env.local scripts/fetch-product-images.mjs"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "bcryptjs": "^3.0.3",
+    "framer-motion": "^14.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.52.0",
+    "next": "16.3.8",
+    "next-themes": "^0.4.6",
+    "nodemailer": "^10.0.14",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@svgr/webpack": "^8.1.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.12",
+    "@types/node": "^20",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.8",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
