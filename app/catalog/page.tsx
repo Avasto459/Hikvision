@@ -31,9 +31,10 @@ export default async function CatalogPage({ searchParams }: { searchParams?: Pro
   const invalidPrice = minPriceResult.invalid || maxPriceResult.invalid;
   const inStock = params.inStock === "true";
   const requestedSort = typeof params.sort === "string" ? params.sort : "newest";
-  const sort = requestedSort === "price-asc" || requestedSort === "price-desc" || requestedSort === "name"
-    ? requestedSort
-    : "newest";
+  const sort: "price-asc" | "price-desc" | "name" | "newest" =
+    requestedSort === "price-asc" || requestedSort === "price-desc" || requestedSort === "name"
+      ? requestedSort
+      : "newest";
   const tree = await getCategoryTree();
   const images = await categoryImageMap();
   const path = category ? await getCategoryPath(category) : [];
