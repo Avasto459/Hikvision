@@ -50,7 +50,7 @@ export async function postVisitorMessage(p: { threadId?: string; token?: string;
   if (p.threadId && p.token) {
     await assertVisitor(p.threadId, p.token);
     await db.batch([
-      { sql: "INSERT INTO chat_messages(id,threadId,sender,body,createdAt) VALUES(?,?, 'visitor', ?, ?)", args: [msgId, p.threadId, body, ts] },
+      { sql: "INSERT INTO chat_messages(id, threadId, sender, body, createdAt) VALUES(?,?, 'visitor', ?, ?)", args: [msgId, p.threadId, body, ts] },
       { sql: "UPDATE chat_threads SET adminUnread=adminUnread+1, lastMessageAt=?, name=CASE WHEN ?<>'' THEN ? ELSE name END, phone=CASE WHEN ?<>'' THEN ? ELSE phone END WHERE id=?", args: [ts, s(p.name).trim(), s(p.name).trim().slice(0, 200), s(p.phone).trim(), s(p.phone).trim().slice(0, 100), p.threadId] },
     ], "write");
     return { threadId: p.threadId, token: p.token, messageId: msgId, createdAt: ts };
@@ -62,8 +62,8 @@ export async function postVisitorMessage(p: { threadId?: string; token?: string;
   const threadId = randomUUID();
   const token = randomBytes(24).toString("hex");
   await db.batch([
-    { sql: "INSERT INTO chat_threads(id,visitorToken,userId,name,phone,adminUnread,visitorUnread,lastMessageAt,createdAt) VALUES(?,?,?,?,?,1,0,?,?)", args: [threadId, token, p.userId || null, name || "Пользователь HASI", phone, ts, ts] },
-    { sql: "INSERT INTO chat_messages(id,threadId,sender,body,createdAt) VALUES(?,?, 'visitor', ?, ?)", args: [msgId, threadId, body, ts] },
+    { sql: "INSERT INTO chat_threads(id, visitorToken, userId, name, phone, adminUnread, visitorUnread, lastMessageAt, createdAt) VALUES(?,?,?,?,?,1,0,?,?)", args: [threadId, token, p.userId || null, name || "Пользователь HASI", phone, ts, ts] },
+    { sql: "INSERT INTO chat_messages(id, threadId, sender, body, createdAt) VALUES(?,?, 'visitor', ?, ?)", args: [msgId, threadId, body, ts] },
   ], "write");
   return { threadId, token, messageId: msgId, createdAt: ts };
 }
@@ -109,7 +109,7 @@ export async function postAdminReply(threadId: string, body: string) {
   const exists = (await db.execute({ sql: "SELECT 1 FROM chat_threads WHERE id=?", args: [threadId] })).rows.length;
   if (!exists) throw new StoreError("Переписка не найдена.", 404);
   await db.batch([
-    { sql: "INSERT INTO chat_messages(id,threadId,sender,body,createdAt) VALUES(?,?, 'admin', ?, ?)", args: [id, threadId, text, ts] },
+    { sql: "INSERT INTO chat_messages(id, threadId, sender, body, createdAt) VALUES(?,?, 'admin', ?, ?)", args: [id, threadId, text, ts] },
     { sql: "UPDATE chat_threads SET visitorUnread=visitorUnread+1, adminUnread=0, lastMessageAt=? WHERE id=?", args: [ts, threadId] },
   ], "write");
   return { id, sender: "admin" as const, body: text, createdAt: ts };

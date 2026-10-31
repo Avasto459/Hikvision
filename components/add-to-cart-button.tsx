@@ -5,14 +5,21 @@ import { useState } from "react";
 import { useCart, type CartProduct } from "@/components/store-provider";
 import type { Product } from "@/lib/db";
 
-/** Кнопка «В корзину» для карточки товара. Блокируется, если товара нет в наличии. */
+/** Кнопка «В корзину» для карточки товара.
+ *  - Изначально: фиолетовый градиент, текст «В корзина»
+ *  - После добавления: зеленый фон #16A34A, текст «Добавлено» с галочкой ✓
+ *  - Если товар уже в корзине: «Добавлено ✓», зеленый фон сохраняется
+ *  - При ошибке: возвращается к исходному состоянию
+ *  - Универсальное использование на всех страницах
+ */
 export function AddToCartButton({ product, disabled = false }: { product: Product; disabled?: boolean }) {
-  const { addItem } = useCart();
+  const { addItem, items } = useCart();
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [error, setError] = useState("");
+  const isInCart = items.some((item) => item.id === product.id);
 
   async function add() {
-    if (state === "busy" || disabled) return;
+    if (state === "busy" || disabled || isInCart) return;
     setError("");
     setState("busy");
     try {
@@ -25,18 +32,44 @@ export function AddToCartButton({ product, disabled = false }: { product: Produc
     }
   }
 
+  // Determine button classes based on state
+  const isDone = state === "done";
+  const buttonClass = isDone
+    ? "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#16A34A] text-white shadow-sm"
+    : "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-700 to-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:brightness-110";
+
   return (
     <div>
+      {error && <p role="alert" className="mt-1 text-xs text-rose-600">{error}</p>}
       <button
         type="button"
         onClick={() => void add()}
-        disabled={disabled || state === "busy"}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-700 to-indigo-600 px-3 py-2 text-sm font-bold text-white shadow transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled || state === "busy" || isInCart}
+        className={buttonClass}
       >
-        {state === "done" ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
-        {disabled ? "Нет в наличии" : state === "done" ? "Добавлено" : "В корзину"}
+        {state === "done" ? (
+          <span className="flex items-center gap-1">
+            <Check className="h-4 w-4" />
+            <span>Добавлено</span>
+          </span>
+        ) : isInCart ? (
+          <span className="flex items-center gap-1">
+            <Check className="h-4 w-4" />
+            <span>Добавлено ✓</span>
+          </span>
+        ) : (
+          <span className="flex items-center gap-1">
+            <ShoppingCart className="h-4 w-4" />
+            <span>В корзина</span>
+          </span>
+        )}
       </button>
-      {error ? <p role="alert" className="mt-1 text-xs text-rose-600">{error}</p> : null}
+      {isInCart && state !== "done" && !error && (
+        <p className="mt-1 text-xs text-emerald-600">В корзине</p>
+      )}
+      {error && !isInCart && (
+        <p className="mt-1 text-xs text-rose-600">⚠ {error}</p>
+      )}
     </div>
   );
 }
