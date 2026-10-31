@@ -136,7 +136,7 @@ export default async function CatalogPage({ searchParams }: { searchParams?: Pro
           {hasFilters ? <Link href="/catalog" className="rounded-xl border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">Сбросить</Link> : null}
         </form>
 
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
           {visibleProducts.map((product) => <ProductCard key={product.id} product={product} favorite cart />)}
         </div>
         {pages > 1 && !showSubcategoryTiles ? (
